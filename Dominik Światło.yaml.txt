@@ -1,0 +1,173 @@
+substitutions:
+  plug_name: dominik
+  plug_friendly_name: Dominik Swiatlo
+  switch_id: "dominik"
+  module_id: Sonoff Mini R2
+  device_ip: 192.168.10.20
+  device_gateway: 192.168.10.1
+  device_subnet: 255.255.254.0
+  api_key: !secret esp_api_key_dominik
+
+esphome:
+  name: ${plug_name}
+  platform: ESP8266
+  board: esp01_1m
+  comment: Switch Module ${switch_id} (${module_id})
+
+wifi:
+  ssid: !secret wifi_ssid_iot
+  password: !secret wifi_pass
+  fast_connect: true  
+  manual_ip:
+    static_ip: ${device_ip}
+    gateway: ${device_gateway}
+    subnet: ${device_subnet}
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${plug_name} Hotspot"
+    password: !secret ap_pass
+
+web_server: 
+  #    css_url: css.css  
+  #    js_url: js.js
+
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s
+
+  # password: !secret api_pass
+  encryption:
+    key: ${api_key}
+ota:
+  password: !secret ota_pass
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: ${plug_name}_relay
+    
+light:
+  - platform: binary
+    name: "${plug_name}_Light"
+    output: ${plug_name}_relay
+    id: ${plug_name}_light
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO4
+      #mode: INPUT_PULLUP
+      #inverted: True
+    name: "${plug_name}_Switch"
+    on_state:
+      then:
+        - light.toggle: ${plug_name}_light
+    internal: true
+    id: switchid
+
+#binary_sensor:
+  # General status sensor
+#  - platform: status
+#    name: ${plug_name}_status
+#  - platform: gpio
+#    pin:
+#      number: GPIO5
+#      mode: INPUT_PULLUP
+#      inverted: True
+#    name: "${plug_name}_button"
+#    on_press:
+#      - switch.toggle: relay
+#    on_multi_click:
+#      - timing:
+#          - ON for at most 1s
+#          - OFF for at most 1s
+#          - ON for at most 1s
+#          - OFF for at least 0.2s
+#        then:
+#          - homeassistant.service:
+#              service: light.toggle
+#              data:
+#                entity_id: light.lamp
+#          - logger.log: "Double Clicked"
+#      - timing:
+#          - ON for 3s to 10s
+#          - OFF for at least 0.5s
+#        then:
+#          - homeassistant.service:
+#              service: switch.turn_off
+#              data:
+#                entity_id: switch.salon_sufit_switch
+#          - homeassistant.service:
+#              service: light.turn_off
+#              data:
+#                entity_id: light.led_za_tv
+
+#switch:
+#  - platform: gpio
+#    name: "${plug_name}_switch"
+#    icon: "mdi:lightbulb"
+#    pin: GPIO4
+#    id: relay
+#  - platform: restart
+#    name: "${plug_name}_restart"
+
+
+#==============================================================
+
+# Sensors with specific and general information
+sensor:
+  # Extra sensor to keep an eye on the Wi-Fi signal
+  - platform: wifi_signal
+    name: "${plug_name}_Wi-Fi_Signal"
+
+    update_interval: 60s
+
+# Extra sensor to keep track of plug uptime
+  - platform: uptime
+    name: "${plug_name}_uptime"
+    id: uptime_s
+    internal: true
+    update_interval: 15s
+
+# Text sensors with general information
+text_sensor:
+  # Expose ESPHome version as sensor.
+  - platform: wifi_info
+    ip_address:
+      name: "${plug_name}_wifi_ip"
+      icon: mdi:ip
+  - platform: template
+    name: "${plug_name}_Uptime_Sensor"
+    lambda: |-
+      uint32_t dur = id(uptime_s).state;
+      int dys = 0;
+      int hrs = 0;
+      int mnts = 0;
+      if (dur > 86399) {
+        dys = trunc(dur / 86400);
+        dur = dur - (dys * 86400);
+      }
+      if (dur > 3599) {
+        hrs = trunc(dur / 3600);
+        dur = dur - (hrs * 3600);
+      }
+      if (dur > 59) {
+        mnts = trunc(dur / 60);
+        dur = dur - (mnts * 60);
+      }
+      char buffer[17];
+      sprintf(buffer, "%ud %02uh %02um %02us", dys, hrs, mnts, dur);
+      return {buffer};
+    icon: mdi:clock-start
+    update_interval: 15s
+
